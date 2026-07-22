@@ -7,7 +7,7 @@ const seed = require('./data')
 const demoUser = {
     _id: 'demo-admin',
     id: 'demo-admin',
-    name: 'Hilda Romero',
+    name: 'Admin Ecommerce de prueba',
     email: 'admin@demo.com',
     password: 'demo1234'
 }
