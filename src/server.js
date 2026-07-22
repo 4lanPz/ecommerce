@@ -57,22 +57,45 @@ app.use(fileUpload({
 app.use(express.urlencoded({ extended: false })) // FORMULARIOS - VISTAS
 app.use(methodOverride('_method'))
 // Establecer la sesión del usuario
+const { isDemo, hasDatabase, hasCloudinary } = require('./demo/mode')
+const FileSessionStore = require('./demo/session-store')
+
+// Las sesiones NUNCA deben quedarse en la memoria del proceso: al reiniciar el
+// servidor (nodemon) o al cambiar de instancia (serverless en Vercel) la cookie
+// del navegador queda huérfana y la app devuelve al login a media navegación.
+//   - Con base de datos: se guardan en MongoDB, así funcionan en Vercel.
+//   - Sin base de datos: se guardan en un archivo, así sobreviven a nodemon.
+const sessionStore = hasDatabase
+    ? require('connect-mongo').MongoStore.create({
+        mongoUrl: process.env.MONGODB_URI,
+        collectionName: 'sessions',
+        ttl: 8 * 60 * 60
+    })
+    : new FileSessionStore()
+
 app.use(session({
-    secret: 'secret',
-    resave: true,
-    saveUninitialized: true
+    secret: process.env.SESSION_SECRET || 'secret',
+    resave: false,
+    saveUninitialized: false,
+    // 8 horas: suficiente para una presentación sin volver a iniciar sesión
+    cookie: { maxAge: 8 * 60 * 60 * 1000 },
+    store: sessionStore
 }));
+// Mensajes de un request al siguiente (por ejemplo, el motivo de un login fallido)
+app.use(require('connect-flash')())
 // Inicialización
 app.use(passport.initialize())
 // Mantener la sesión del usuario
 app.use(passport.session())
 
 // Variables globales
-const { isDemo } = require('./demo/mode')
 app.use((req, res, next) => {
     res.locals.user = req.user?.name || null
-    // Permite que las vistas adapten los formularios en modo demo
+    // Precarga las credenciales de prueba en el login (solo sin base de datos)
     res.locals.isDemo = isDemo
+    // Sin Cloudinary las imágenes se generan solas: los formularios ocultan el
+    // campo de subir archivo y dejan de exigir una URL de imagen
+    res.locals.generatedImages = !hasCloudinary
     next()
 })
 

@@ -8,6 +8,10 @@ const passport = require("passport")
 // Importar el método sendMailToUser
 const { sendMailToUser, sendMailToRecoveryPassword } = require("../config/nodemailer")
 
+// El correo es opcional: sin Mailtrap las cuentas quedan confirmadas y la
+// recuperación de contraseña se desactiva en lugar de fallar con un error 500
+const { hasMail } = require("../demo/mode")
+
 
 
 
@@ -35,12 +39,20 @@ const registerNewUser = async(req,res)=>{
     const newUser = await new User({name,email,password,confirmpassword})
     // Encriptrar el password
     newUser.password = await newUser.encrypPassword(password)
-    // Establecer el token
-    const token = newUser.crearToken()
-    // Enviar el correo electrónico
-    sendMailToUser(email,token)
+
+    if (hasMail) {
+        // Establecer el token
+        const token = newUser.crearToken()
+        // Enviar el correo electrónico
+        sendMailToUser(email,token)
+    } else {
+        // Sin servicio de correo no hay forma de confirmar la cuenta, así que la
+        // damos por confirmada: de lo contrario nadie podría iniciar sesión
+        newUser.confirmEmail = true
+    }
+
     // Guardar en BDD
-    newUser.save()
+    await newUser.save()
     // Redireccionar a la vista login
     res.redirect('/user/login')
 }
@@ -70,7 +82,9 @@ const confirmEmail = async(req,res)=>{
 
 // Método es para mostrar el fomrulario de login
 const renderLoginForm =(req,res)=>{
-    res.render('user/loginForm')
+    // Mensaje dejado por passport cuando el intento anterior falló
+    const [message] = req.flash('error')
+    res.render('user/loginForm', message ? { message, messageType: 'danger' } : {})
 }
 // Middleware personalizado para verificar campos obligatorios
 const checkRequiredFields = (req, res, next) =>{
@@ -89,8 +103,9 @@ const loginAndCheckFields = (req, res, next) => {
 
 // Método para realizar en inicio de sesión con los datos del form
 const loginUser = passport.authenticate('local',{
-    // Si todo sale mal - redireccionar al login
+    // Si todo sale mal - redireccionar al login mostrando el motivo
     failureRedirect:'/user/login',
+    failureFlash: true,
     // Si todo sale bien - redirecccionar a la vista de portafolios
     successRedirect:'/portafolios'
 })
@@ -111,6 +126,10 @@ const renderForgotPassword = (req, res)=>{
 
 const forgotPassword = async (req, res)=>{
     const { email } =req.body;
+
+    // Sin servicio de correo no se puede enviar el enlace: se avisa en lugar de
+    // reventar con un error 500
+    if (!hasMail) return res.render('user/forgotPasswordForm', {message: "La recuperación de contraseña necesita el servicio de correo configurado",messageType: 'danger'});
 
     if (Object.values(req.body).includes("")) return res.render('user/forgotPasswordForm', {message: "Lo sentimos, debe llenar todos los campos",messageType: 'danger'});
 

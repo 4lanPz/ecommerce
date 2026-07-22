@@ -36,7 +36,7 @@
                     <div class="mb-3">
                         <label for="imageUrl" class="form-label fw-bold">URL de la Imagen</label>
                         <input class="form-control" id="imageUrl" type="text" placeholder="https://..."
-                            {{#unless isDemo}}required{{/unless}} name="imageUrl" value="{{category.imageUrl}}" />
+                            {{#unless generatedImages}}required{{/unless}} name="imageUrl" value="{{category.imageUrl}}" />
                     </div>
 
                     <!-- Submit Button-->

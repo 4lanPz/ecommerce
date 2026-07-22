@@ -61,13 +61,48 @@ nombre, por lo que el campo de subir archivo no aparece en el formulario.
 4. Entrar como administrador (*Administrador* en el menú) y crear un producto.
 5. Volver al inicio y mostrar el producto nuevo ya publicado en la tienda.
 
-## Modo completo (con base de datos)
+## Modo con base de datos (persistente)
 
-Copiar `.env.example` a `.env` y completar las variables:
+Cada servicio se detecta por separado, así que **solo MongoDB ya alcanza** para
+tener una tienda que guarda todo. Cloudinary y Mailtrap son opcionales.
 
-- `MONGODB_URI` — conexión a MongoDB (local o Atlas)
-- `CLOUD_NAME`, `API_KEY`, `API_SECRET` — Cloudinary, para subir imágenes
-- `HOST_MAILTRAP`, `PORT_MAILTRAP`, `USER_MAILTRAP`, `PASS_MAILTRAP` — envío de correos
+| Variable | Qué activa | ¿Obligatoria? |
+| --- | --- | --- |
+| `MONGODB_URI` | Guarda productos, categorías, pedidos y sesiones | Sí |
+| `SESSION_SECRET` | Firma las cookies de sesión | Sí (en producción) |
+| `CLOUD_NAME`, `API_KEY`, `API_SECRET` | Subir imágenes propias; sin ellas se generan SVG | No |
+| `HOST_MAILTRAP`, `PORT_MAILTRAP`, `USER_MAILTRAP`, `PASS_MAILTRAP` | Correos de pedido y recuperar contraseña | No |
 
-Con `MONGODB_URI` presente el modo demo se desactiva solo y la aplicación usa la
-base de datos.
+### Puesta en marcha
+
+1. Copiar `.env.example` a `.env` y poner al menos `MONGODB_URI` y `SESSION_SECRET`.
+2. Crear el administrador y el catálogo de ejemplo:
+
+   ```bash
+   npm run seed
+   ```
+
+   Esto crea el usuario `admin@demo.com` / `demo1234` ya confirmado (se puede
+   cambiar con `ADMIN_EMAIL` y `ADMIN_PASSWORD`). Es repetible: si te quedas
+   fuera, vuelve a correrlo y se restaura el acceso. El catálogo solo se carga
+   si la tienda está vacía, así que no pisa tus datos.
+3. `npm start`.
+
+### Sin Cloudinary y sin Mailtrap
+
+- Las imágenes se generan como SVG desde el nombre del producto, igual que en la
+  demo, y el formulario no pide subir archivo.
+- Los pedidos **se guardan en la base de datos** y además se imprimen en consola,
+  en lugar de enviarse por correo.
+- Las cuentas nuevas quedan confirmadas automáticamente (sin correo no hay forma
+  de confirmarlas); la recuperación de contraseña queda desactivada con un aviso.
+
+## Despliegue en Vercel
+
+Las sesiones se guardan en MongoDB, no en la memoria del proceso, que es lo que
+hace falta para que funcione en serverless: sin eso el login se pierde entre
+requests y la aplicación devuelve al formulario de login a media navegación.
+
+En *Settings → Environment Variables* hay que cargar `MONGODB_URI` y
+`SESSION_SECRET`. En MongoDB Atlas, *Network Access* debe permitir `0.0.0.0/0`,
+porque las funciones de Vercel no tienen IP fija.

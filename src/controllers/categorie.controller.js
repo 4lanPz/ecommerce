@@ -1,8 +1,11 @@
 // Importar el modelo Category
 const Category = require('../models/Category')
-// Modo demo
+// Importar el modelo Portfolio (los productos guardan el nombre de su categoría)
+const Portfolio = require('../models/Portfolio')
+// Capacidades disponibles
 const { isDemo } = require('../demo/mode')
 const store = require('../demo/store')
+const { generatedCategoryImage } = require('../config/generated-image')
 
 // MÉTODO PARA LISTAR LAS CATEGORIAS
 const renderAllCategorias = async (req, res) => {
@@ -45,6 +48,8 @@ const createNewCategorie = async (req, res) => {
     }
 
     const newCategory = new Category({ name, imageUrl });
+    // Sin URL propia se genera una imagen a partir del nombre de la categoría
+    if (!imageUrl) newCategory.imageUrl = generatedCategoryImage(newCategory._id)
     await newCategory.save();
     res.redirect('/categories')
 }
@@ -90,7 +95,16 @@ const updateCategorie = async (req, res) => {
         });
     }
 
-    await Category.findByIdAndUpdate(categoryId, { name: formattedName, imageUrl }, { new: true });
+    // Si el campo de imagen se deja vacío se conserva la que ya tenía,
+    // en lugar de borrarla
+    const changes = imageUrl ? { name: formattedName, imageUrl } : { name: formattedName }
+    const previous = await Category.findByIdAndUpdate(categoryId, changes);
+
+    // Los productos referencian la categoría por nombre: al renombrarla hay que
+    // arrastrarlos, o dejarían de aparecer en la tienda
+    if (previous && previous.name !== formattedName) {
+        await Portfolio.updateMany({ category: previous.name }, { category: formattedName })
+    }
 
     res.redirect('/categories')
 }

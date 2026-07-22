@@ -1,7 +1,11 @@
-// Rutas exclusivas del modo demo: generan las imágenes de productos y
-// categorías como SVG, para no depender de Cloudinary ni de internet.
+// Genera las imágenes de productos y categorías como SVG, para no depender de
+// Cloudinary ni de internet. Funciona igual con o sin base de datos: busca el
+// elemento donde corresponda y dibuja su nombre.
 const { Router } = require('express')
 const store = require('../demo/store')
+const { hasDatabase } = require('../demo/mode')
+const Portfolio = require('../models/Portfolio')
+const Category = require('../models/Category')
 
 const router = Router()
 
@@ -59,23 +63,45 @@ const buildSvg = (label, seed) => {
 </svg>`
 }
 
-router.get('/demo/img/:slug.svg', (req, res) => {
+// Color estable a partir del identificador, sin depender de la posición en la
+// lista (los ids de MongoDB no son índices)
+const seedFrom = (id) => {
+    let hash = 0
+    for (const char of String(id)) hash = (hash * 31 + char.charCodeAt(0)) % 100000
+    return hash
+}
+
+// Buscar el nombre a dibujar, venga de la base de datos o del almacén en memoria
+const findLabel = async (slug) => {
+    if (!hasDatabase) {
+        const product = store.getProducts().find(p => p._id === slug)
+        if (product) return product.title
+        const category = store.getCategories().find(c => c._id === slug)
+        return category ? category.name : null
+    }
+
+    // Un id inválido no es un error: simplemente no existe esa imagen
+    if (!slug.match(/^[a-f\d]{24}$/i)) return null
+
+    const product = await Portfolio.findById(slug).lean()
+    if (product) return product.title
+    const category = await Category.findById(slug).lean()
+    return category ? category.name : null
+}
+
+router.get('/demo/img/:slug.svg', async (req, res) => {
     const { slug } = req.params
-    const products = store.getProducts()
-    const categories = store.getCategories()
-    const product = products.find(p => p._id === slug)
-    const category = categories.find(c => c._id === slug)
-    const item = product || category
 
-    if (!item) return res.status(404).send('Imagen no encontrada')
+    try {
+        const label = await findLabel(slug)
+        if (!label) return res.status(404).send('Imagen no encontrada')
 
-    // El índice da un color estable a cada producto
-    const seed = product
-        ? products.indexOf(product)
-        : categories.indexOf(category)
-
-    res.type('image/svg+xml')
-    res.send(buildSvg(product ? product.title : category.name, seed))
+        res.type('image/svg+xml')
+        res.send(buildSvg(label, seedFrom(slug)))
+    } catch (error) {
+        console.error('Error generando la imagen:', error.message)
+        res.status(500).send('Error generando la imagen')
+    }
 })
 
 module.exports = router

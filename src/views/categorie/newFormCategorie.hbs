@@ -30,8 +30,8 @@
                     <div class="mb-3">
                         <label for="imageUrl" class="form-label fw-bold">URL de la Imagen</label>
                         <input class="form-control" id="imageUrl" type="text" placeholder="https://..."
-                            {{#unless isDemo}}required{{/unless}} name="imageUrl" />
-                        {{#if isDemo}}
+                            {{#unless generatedImages}}required{{/unless}} name="imageUrl" />
+                        {{#if generatedImages}}
                         <div class="form-text">Opcional en modo demo: si lo dejas vacío se genera una imagen
                             automáticamente.</div>
                         {{/if}}
